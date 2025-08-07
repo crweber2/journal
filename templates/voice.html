@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Journal - Driving Mode</title>
+    <link rel="stylesheet" href="/static/voice.css">
+</head>
+<body>
+    <div class="voice-container">
+        <header class="voice-header">
+            <h1>🎤 Voice Journal</h1>
+            <div class="connection-status" id="connectionStatus">
+                <span class="status-dot"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <main class="voice-main">
+            <!-- Session Type Selection -->
+            <div class="session-selector" id="sessionSelector">
+                <h2>Choose Your Journal Mode</h2>
+                <div class="session-buttons">
+                    <button class="session-btn" data-type="reflection">
+                        <div class="session-icon">🌅</div>
+                        <div class="session-title">Daily Reflection</div>
+                        <div class="session-desc">Process your day</div>
+                    </button>
+                    <button class="session-btn" data-type="planning">
+                        <div class="session-icon">📋</div>
+                        <div class="session-title">Planning</div>
+                        <div class="session-desc">Organize tomorrow</div>
+                    </button>
+                    <button class="session-btn" data-type="notes">
+                        <div class="session-icon">🧠</div>
+                        <div class="session-title">Brain Dump</div>
+                        <div class="session-desc">Capture all thoughts</div>
+                    </button>
+                    <button class="session-btn" data-type="goals">
+                        <div class="session-icon">🎯</div>
+                        <div class="session-title">Goals</div>
+                        <div class="session-desc">Review objectives</div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Voice Interface -->
+            <div class="voice-interface hidden" id="voiceInterface">
+                <!-- Audio Visualization -->
+                <div class="audio-visualizer" id="audioVisualizer">
+                    <div class="wave-container">
+                        <div class="wave"></div>
+                        <div class="wave"></div>
+                        <div class="wave"></div>
+                        <div class="wave"></div>
+                        <div class="wave"></div>
+                    </div>
+                </div>
+
+                <!-- Status Display -->
+                <div class="voice-status" id="voiceStatus">
+                    <div class="status-message">Ready to listen...</div>
+                    <div class="listening-indicator">
+                        <div class="pulse-ring"></div>
+                        <div class="pulse-ring"></div>
+                        <div class="pulse-ring"></div>
+                    </div>
+                </div>
+
+                <!-- Transcript Display -->
+                <div class="transcript-container" id="transcriptContainer">
+                    <div class="transcript-scroll" id="transcriptScroll">
+                        <!-- Transcripts will be added here -->
+                    </div>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="voice-controls">
+                    <button class="control-btn mute-btn" id="muteBtn" title="Mute/Unmute">
+                        <span class="btn-icon">🔊</span>
+                        <span class="btn-text">Mute</span>
+                    </button>
+                    <button class="control-btn pause-btn" id="pauseBtn" title="Pause Session">
+                        <span class="btn-icon">⏸️</span>
+                        <span class="btn-text">Pause</span>
+                    </button>
+                    <button class="control-btn end-btn" id="endBtn" title="End Session">
+                        <span class="btn-icon">⏹️</span>
+                        <span class="btn-text">End</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading Screen -->
+            <div class="loading-screen" id="loadingScreen">
+                <div class="loading-spinner"></div>
+                <div class="loading-text">Starting voice session...</div>
+            </div>
+
+            <!-- Error Screen -->
+            <div class="error-screen hidden" id="errorScreen">
+                <div class="error-icon">⚠️</div>
+                <div class="error-message" id="errorMessage">Something went wrong</div>
+                <button class="retry-btn" id="retryBtn">Try Again</button>
+                <a href="/" class="back-link">← Back to Text Mode</a>
+            </div>
+        </main>
+
+        <!-- Navigation -->
+        <nav class="voice-nav">
+            <a href="/" class="nav-link">← Text Mode</a>
+            <a href="/browse" class="nav-link">Browse Entries</a>
+        </nav>
+    </div>
+
+    <script src="/static/voice.js"></script>
+</body>
+</html>

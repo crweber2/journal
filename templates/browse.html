@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browse Journal Entries</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Browse Journal Entries</h1>
+            <nav>
+                <a href="/" class="nav-btn">← Back to Journal</a>
+                <input type="date" id="dateFilter" class="date-filter">
+                <button id="clearFilter" class="nav-btn">Show All</button>
+                <button id="clearDatabase" class="nav-btn" style="background: #e53e3e; color: white;">Clear Database</button>
+            </nav>
+        </header>
+
+        <main>
+            <div class="browse-container">
+                <div id="entriesContainer" class="entries-container">
+                    <div class="loading">Loading entries...</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/browse.js"></script>
+</body>
+</html>

@@ -4,24 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Journal App</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/theme.css">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>📝 Journal Assistant</h1>
-            <nav>
-                <button id="reflectionBtn" class="nav-btn active" data-type="reflection">Daily Reflection</button>
-                <button id="planningBtn" class="nav-btn" data-type="planning">Planning</button>
-                <button id="notesBtn" class="nav-btn" data-type="notes">Brain Dump</button>
-                <button id="goalsBtn" class="nav-btn" data-type="goals">Goals</button>
-                <a href="/voice-mode" class="nav-btn voice-btn">🎤 Voice Mode</a>
-                <a href="/browse" class="nav-btn browse-btn">Browse Entries</a>
-            </nav>
-        </header>
+        {% include 'partials/header.html' %}
 
         <main>
-            <div id="chatContainer" class="chat-container">
+            <nav class="app-nav" aria-label="Session type" style="margin-bottom:16px;">
+                <button id="reflectionBtn" class="nav-btn btn btn--secondary active" data-type="reflection">Daily Reflection</button>
+                <button id="planningBtn" class="nav-btn btn btn--ghost" data-type="planning">Planning</button>
+                <button id="notesBtn" class="nav-btn btn btn--ghost" data-type="notes">Brain Dump</button>
+                <button id="goalsBtn" class="nav-btn btn btn--ghost" data-type="goals">Goals</button>
+            </nav>
+                <div id="chatContainer" class="chat-container surface">
                 <div id="messages" class="messages">
                     <div class="message ai-message">
                         <div class="message-content">
@@ -34,7 +31,7 @@
                 <div class="input-container">
                     <div class="input-wrapper">
                         <textarea id="messageInput" placeholder="Share your thoughts..." rows="3"></textarea>
-                        <button id="sendBtn" class="send-btn">
+                        <button id="sendBtn" class="send-btn btn btn--primary" aria-label="Send message">
                             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <line x1="22" y1="2" x2="11" y2="13"></line>
                                 <polygon points="22,2 15,22 11,13 2,9"></polygon>
@@ -42,10 +39,10 @@
                         </button>
                     </div>
                     <div class="input-actions">
-                        <button id="voiceBtn" class="voice-btn" title="Voice input (coming soon)">
+                        <button id="voiceBtn" class="voice-btn btn btn--secondary" title="Voice input (coming soon)" aria-label="Voice input">
                             🎤
                         </button>
-                        <button id="newSessionBtn" class="new-session-btn">
+                        <button id="newSessionBtn" class="new-session-btn btn btn--ghost">
                             New Session
                         </button>
                     </div>

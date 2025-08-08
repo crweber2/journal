@@ -6,9 +6,9 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--bg-gradient);
     min-height: 100vh;
-    color: #333;
+    color: var(--text-1);
 }
 
 .container {
@@ -20,21 +20,7 @@ body {
     flex-direction: column;
 }
 
-header {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
-    padding: 20px;
-    margin-bottom: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-}
 
-header h1 {
-    font-size: 2rem;
-    margin-bottom: 15px;
-    text-align: center;
-    color: #4a5568;
-}
 
 nav {
     display: flex;
@@ -62,26 +48,28 @@ nav {
 }
 
 .nav-btn.active {
-    background: #667eea;
-    color: white;
+    /* unified via .btn variants; keep focus indication */
+    box-shadow: var(--ring);
 }
 
 .browse-btn {
-    background: #48bb78 !important;
-    color: white !important;
+    /* unified via .btn variants */
+    background: inherit !important;
+    color: inherit !important;
 }
 
 .browse-btn:hover {
-    background: #38a169 !important;
+    background: inherit !important;
 }
 
 .voice-btn {
-    background: #9f7aea !important;
-    color: white !important;
+    /* unified via .btn variants */
+    background: inherit !important;
+    color: inherit !important;
 }
 
 .voice-btn:hover {
-    background: #805ad5 !important;
+    background: inherit !important;
 }
 
 main {
@@ -91,14 +79,15 @@ main {
 }
 
 .chat-container {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
+    background: var(--surface);
+    backdrop-filter: blur(var(--backdrop-blur));
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-3);
     padding: 20px;
     height: 70vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-1);
 }
 
 .messages {
@@ -130,16 +119,16 @@ main {
 }
 
 .user-message .message-content {
-    background: #667eea;
-    color: white;
-    border-bottom-right-radius: 5px;
+    background: var(--primary);
+    color: var(--text-inverse);
+    border-bottom-right-radius: 6px;
 }
 
 .ai-message .message-content {
-    background: #f7fafc;
-    color: #4a5568;
-    border-bottom-left-radius: 5px;
-    border: 1px solid #e2e8f0;
+    background: var(--surface-2);
+    color: var(--text-2);
+    border-bottom-left-radius: 6px;
+    border: 1px solid var(--surface-border);
 }
 
 .message-time {
@@ -169,7 +158,7 @@ main {
     flex: 1;
     padding: 15px;
     border: 2px solid #e2e8f0;
-    border-radius: 15px;
+    border-radius: var(--radius-2);
     resize: none;
     font-family: inherit;
     font-size: 16px;
@@ -179,13 +168,14 @@ main {
 
 #messageInput:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: var(--primary);
+    box-shadow: var(--ring);
 }
 
 .send-btn {
     padding: 15px;
-    background: #667eea;
-    color: white;
+    background: var(--primary);
+    color: var(--text-inverse);
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -198,7 +188,7 @@ main {
 }
 
 .send-btn:hover {
-    background: #5a67d8;
+    background: var(--primary-600);
     transform: scale(1.05);
 }
 
@@ -237,11 +227,8 @@ main {
 
 /* Browse page styles */
 .browse-container {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 15px;
+    /* Inherit visual from .surface; keep spacing only */
     padding: 20px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .date-filter {

@@ -74,7 +74,7 @@ class JournalPrompts:
 
 class VoiceConfig:
     """Voice session configuration constants"""
-    DEFAULT_VOICE = "echo" #alloy, ash, ballad, coral, echo, sage, shimmer, and verse
+    DEFAULT_VOICE = "coral" #alloy, ash, ballad, coral, echo, sage, shimmer, and verse
     DEFAULT_MODEL = "gpt-4.1"
     DEFAULT_VOICE_MODEL = "gpt-4o-realtime-preview"#-2024-10-01"
     AUDIO_FORMAT = "pcm16"

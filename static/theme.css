@@ -1,0 +1,235 @@
+/* static/theme.css */
+/* 1) Tokens */
+:root {
+  /* Brand gradient */
+  --brand-start: #667eea;
+  --brand-end: #764ba2;
+  --bg-gradient: linear-gradient(135deg, var(--brand-start) 0%, var(--brand-end) 100%);
+
+  /* Text */
+  --text-1: #1f2937;
+  --text-2: #4b5563;
+  --text-muted: #6b7280;
+  --text-inverse: #ffffff;
+
+  /* Surfaces */
+  --surface: rgba(255, 255, 255, 0.95);
+  --surface-2: rgba(255, 255, 255, 0.9);
+  --surface-border: rgba(0, 0, 0, 0.08);
+  --shadow-1: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --backdrop-blur: 10px;
+
+  /* Brand + states */
+  --primary: #6366f1;
+  --primary-600: #4f46e5;
+  --secondary: #9f7aea;
+  --secondary-600: #805ad5;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+
+  /* Radii, spacing, type, container */
+  --radius-1: 8px;
+  --radius-2: 12px;
+  --radius-3: 16px;
+  --radius-round: 999px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --font-1: 12px;
+  --font-2: 14px;
+  --font-3: 16px;
+  --font-4: 18px;
+  --font-5: 24px;
+  --font-6: 32px;
+  --line: 1.5;
+
+  --container-max: 1200px;
+
+  /* Effects */
+  --ring: 0 0 0 3px rgba(99,102,241,0.35);
+  --ease-fast: 0.2s ease;
+  --ease-med: 0.3s ease;
+}
+
+/* Optional dark mode */
+[data-theme="dark"] {
+  --brand-start: #0f172a;
+  --brand-end: #1f2937;
+  --text-1: #f3f4f6;
+  --text-2: #e5e7eb;
+  --text-muted: #9ca3af;
+  --surface: rgba(17, 24, 39, 0.7);
+  --surface-2: rgba(31, 41, 55, 0.6);
+  --surface-border: rgba(255, 255, 255, 0.12);
+  --shadow-1: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* 2) Base + layout */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+  background: var(--bg-gradient);
+  color: var(--text-1);
+}
+
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: var(--space-5);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 3) Surfaces */
+.surface {
+  background: var(--surface);
+  backdrop-filter: blur(var(--backdrop-blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-3);
+  box-shadow: var(--shadow-1);
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+/* 4) Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 10px 16px;
+  font-size: var(--font-2);
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-round);
+  cursor: pointer;
+  transition: transform var(--ease-fast), background-color var(--ease-med), box-shadow var(--ease-med);
+  text-decoration: none;
+  color: var(--text-2);
+  background: #f7fafc;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn:focus-visible { outline: none; box-shadow: var(--ring); }
+
+.btn--primary { background: var(--primary); color: var(--text-inverse); }
+.btn--primary:hover { background: var(--primary-600); }
+
+.btn--secondary { background: var(--secondary); color: var(--text-inverse); }
+.btn--secondary:hover { background: var(--secondary-600); }
+
+.btn--ghost { background: transparent; border: 1px solid var(--surface-border); color: var(--text-2); }
+.btn--ghost:hover { background: rgba(0,0,0,0.03); }
+
+.btn--danger { background: var(--error); color: var(--text-inverse); }
+.btn--danger:hover { filter: brightness(0.95); }
+
+/* 5) Chips / badges */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-round);
+  background: #f7fafc;
+  border: 1px solid var(--surface-border);
+  color: var(--text-2);
+}
+.chip--success { background: rgba(16,185,129,0.12); color: #065f46; border-color: rgba(16,185,129,0.25); }
+.chip--warning { background: rgba(245,158,11,0.12); color: #7c2d12; border-color: rgba(245,158,11,0.25); }
+.chip--error   { background: rgba(239,68,68,0.12);  color: #7f1d1d; border-color: rgba(239,68,68,0.25); }
+
+/* 6) Message bubbles */
+.bubble {
+  padding: 12px 16px;
+  border-radius: 20px;
+  line-height: var(--line);
+  max-width: 80%;
+  animation: fadeIn var(--ease-med);
+  word-wrap: break-word;
+}
+.bubble.user {
+  background: var(--primary);
+  color: var(--text-inverse);
+  border-bottom-right-radius: 6px;
+  margin-left: auto;
+}
+.bubble.ai {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border: 1px solid var(--surface-border);
+  border-bottom-left-radius: 6px;
+  margin-right: auto;
+}
+
+/* 7) Inputs */
+input[type="text"], input[type="date"], textarea {
+  width: 100%;
+  padding: 12px;
+  font-size: var(--font-3);
+  border: 2px solid #e2e8f0;
+  border-radius: var(--radius-2);
+  background: #fff;
+  color: var(--text-1);
+  transition: border-color var(--ease-med), box-shadow var(--ease-med);
+}
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: var(--ring);
+}
+
+/* 8) Header (shared) */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-5);
+  background: var(--surface);
+  backdrop-filter: blur(var(--backdrop-blur));
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-3);
+  box-shadow: var(--shadow-1);
+}
+.app-brand { font-size: var(--font-5); color: #4a5568; display: flex; align-items: center; gap: var(--space-3); }
+.app-nav { display: flex; gap: var(--space-2); flex-wrap: wrap; justify-content: center; }
+.app-nav .is-active { outline: none; box-shadow: var(--ring); }
+
+/* Unified content panel width + centering */
+.chat-container,
+.browse-container,
+.session-selector,
+.voice-interface {
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+/* 9) Helpers */
+.focus-ring { outline: none !important; box-shadow: var(--ring) !important; }
+.loading { text-align: center; padding: 40px; color: #a0aec0; font-style: italic; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 10) Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

@@ -4,22 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Browse Journal Entries</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/theme.css">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>📚 Browse Journal Entries</h1>
-            <nav>
-                <a href="/" class="nav-btn">← Back to Journal</a>
-                <input type="date" id="dateFilter" class="date-filter">
-                <button id="clearFilter" class="nav-btn">Show All</button>
-                <button id="clearDatabase" class="nav-btn" style="background: #e53e3e; color: white;">Clear Database</button>
-            </nav>
-        </header>
+        {% include 'partials/header.html' %}
 
         <main>
-            <div class="browse-container">
+            <div class="surface browse-container">
+                <div class="browse-toolbar" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+                    <input type="date" id="dateFilter" class="date-filter" aria-label="Filter by date">
+                    <button id="clearFilter" class="btn btn--ghost">Show All</button>
+                    <button id="clearDatabase" class="btn btn--danger">Clear Database</button>
+                </div>
                 <div id="entriesContainer" class="entries-container">
                     <div class="loading">Loading entries...</div>
                 </div>

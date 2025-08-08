@@ -1,0 +1,14 @@
+<header class="app-header surface">
+  <div class="app-brand">
+    <span>📝</span>
+    <span>Journal Assistant</span>
+  </div>
+  <nav class="app-nav">
+    {% set path = request.url.path %}
+    <a href="/" class="btn btn--ghost {{ 'is-active' if path == '/' else '' }}" aria-current="{{ 'page' if path == '/' else '' }}">Text Mode</a>
+    <a href="/voice-mode" class="btn btn--ghost {{ 'is-active' if path.startswith('/voice-mode') else '' }}" aria-current="{{ 'page' if path.startswith('/voice-mode') else '' }}">🎤 Voice Mode</a>
+    <a href="/browse" class="btn btn--ghost {{ 'is-active' if path.startswith('/browse') else '' }}" aria-current="{{ 'page' if path.startswith('/browse') else '' }}">Browse</a>
+    <!-- Optional future: theme toggle -->
+    <!-- <button id="themeToggle" class="btn btn--ghost" aria-label="Toggle theme">🌓</button> -->
+  </nav>
+</header>

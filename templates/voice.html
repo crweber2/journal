@@ -4,23 +4,31 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Voice Journal - Driving Mode</title>
+    <link rel="stylesheet" href="/static/theme.css">
+    <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="/static/voice.css">
 </head>
 <body>
-    <div class="voice-container">
-        <header class="voice-header">
-            <h1>🎤 Voice Journal</h1>
-            <div class="connection-status" id="connectionStatus">
+    <div class="container">
+        {% include 'partials/header.html' %}
+
+        <main class="voice-main">
+            <nav class="app-nav" aria-label="Session type" style="margin-bottom:16px;">
+                <button id="reflectionBtn" class="nav-btn btn btn--secondary active" data-type="reflection">Daily Reflection</button>
+                <button id="planningBtn" class="nav-btn btn btn--ghost" data-type="planning">Planning</button>
+                <button id="notesBtn" class="nav-btn btn btn--ghost" data-type="notes">Brain Dump</button>
+                <button id="goalsBtn" class="nav-btn btn btn--ghost" data-type="goals">Goals</button>
+            </nav>
+
+            <div class="connection-status chip" id="connectionStatus">
                 <span class="status-dot"></span>
                 <span class="status-text">Connecting...</span>
             </div>
-        </header>
 
-        <main class="voice-main">
-            <!-- Session Type Selection -->
-            <div class="session-selector" id="sessionSelector">
+            <!-- Session Type Selection (hidden for now) -->
+            <div class="session-selector surface" id="sessionSelector" style="display: none;">
                 <h2>Choose Your Journal Mode</h2>
-                <div class="session-buttons">
+                <div class="session-buttons" aria-label="Session type">
                     <button class="session-btn" data-type="reflection">
                         <div class="session-icon">🌅</div>
                         <div class="session-title">Daily Reflection</div>
@@ -45,7 +53,8 @@
             </div>
 
             <!-- Voice Interface -->
-            <div class="voice-interface hidden" id="voiceInterface">
+            <div id="voicePanel" class="chat-container surface">
+                <div class="voice-interface" id="voiceInterface">
                 <!-- Audio Visualization -->
                 <div class="audio-visualizer" id="audioVisualizer">
                     <div class="wave-container">
@@ -59,7 +68,7 @@
 
                 <!-- Status Display -->
                 <div class="voice-status" id="voiceStatus">
-                    <div class="status-message">Ready to listen...</div>
+                    <div class="status-message" role="status" aria-live="polite">Ready to listen...</div>
                     <div class="listening-indicator">
                         <div class="pulse-ring"></div>
                         <div class="pulse-ring"></div>
@@ -76,19 +85,20 @@
 
                 <!-- Control Buttons -->
                 <div class="voice-controls">
-                    <button class="control-btn mute-btn" id="muteBtn" title="Mute/Unmute">
+                    <button class="btn btn--ghost mute-btn" id="muteBtn" title="Mute/Unmute" aria-label="Mute or unmute">
                         <span class="btn-icon">🔊</span>
                         <span class="btn-text">Mute</span>
                     </button>
-                    <button class="control-btn pause-btn" id="pauseBtn" title="Pause Session">
+                    <button class="btn btn--ghost pause-btn" id="pauseBtn" title="Pause Session" aria-label="Pause session">
                         <span class="btn-icon">⏸️</span>
                         <span class="btn-text">Pause</span>
                     </button>
-                    <button class="control-btn end-btn" id="endBtn" title="End Session">
+                    <button class="btn btn--danger end-btn" id="endBtn" title="End Session" aria-label="End session">
                         <span class="btn-icon">⏹️</span>
                         <span class="btn-text">End</span>
                     </button>
                 </div>
+            </div>
             </div>
 
             <!-- Loading Screen -->
@@ -106,13 +116,8 @@
             </div>
         </main>
 
-        <!-- Navigation -->
-        <nav class="voice-nav">
-            <a href="/" class="nav-link">← Text Mode</a>
-            <a href="/browse" class="nav-link">Browse Entries</a>
-        </nav>
     </div>
 
-    <script src="/static/voice.js"></script>
+    <script src="/static/voice.js?v=2"></script>
 </body>
 </html>

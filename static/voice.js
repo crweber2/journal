@@ -56,6 +56,12 @@ class VoiceJournal {
         
         // Controls
         this.sessionButtons = document.querySelectorAll('.session-btn');
+        this.navButtons = document.querySelectorAll('.nav-btn');
+        console.log('Found nav buttons:', this.navButtons.length);
+        this.navButtons.forEach((btn, index) => {
+            console.log(`Nav button ${index}:`, btn.textContent, btn.dataset.type);
+        });
+        
         this.muteBtn = document.getElementById('muteBtn');
         this.pauseBtn = document.getElementById('pauseBtn');
         this.endBtn = document.getElementById('endBtn');
@@ -70,9 +76,21 @@ class VoiceJournal {
     }
 
     attachEventListeners() {
-        // Session selection
+        // Session selection (old big cards)
         this.sessionButtons.forEach(btn => {
             btn.addEventListener('click', () => {
+                this.startVoiceSession(btn.dataset.type);
+            });
+        });
+
+        // Session selection (new nav buttons)
+        this.navButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Update active state
+                this.navButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Start voice session
                 this.startVoiceSession(btn.dataset.type);
             });
         });

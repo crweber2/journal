@@ -74,9 +74,9 @@ class JournalPrompts:
 
 class VoiceConfig:
     """Voice session configuration constants"""
-    DEFAULT_VOICE = "alloy"
+    DEFAULT_VOICE = "echo" #alloy, ash, ballad, coral, echo, sage, shimmer, and verse
     DEFAULT_MODEL = "gpt-4.1"
-    DEFAULT_VOICE_MODEL = "gpt-4o-realtime"#-preview-2024-10-01"
+    DEFAULT_VOICE_MODEL = "gpt-4o-realtime-preview"#-2024-10-01"
     AUDIO_FORMAT = "pcm16"
     MAX_TOKENS = 300
     TEMPERATURE = 0.7
@@ -571,6 +571,7 @@ async def voice_websocket(websocket: WebSocket):
     openai_ws = None
     conversation_transcript = []
     session_type = "reflection"
+    awaiting_response = False
     
     try:
         # Get API key
@@ -630,10 +631,45 @@ async def voice_websocket(websocket: WebSocket):
         # Relay messages bidirectionally
         async def relay_from_openai():
             """Relay messages from OpenAI to client"""
+            nonlocal awaiting_response
             try:
                 async for message in openai_ws:
-                    data = json.loads(message)
+                    # Forward binary frames directly
+                    if isinstance(message, (bytes, bytearray)):
+                        await websocket.send_bytes(message)
+                        continue
+
+                    # Parse JSON text frames
+                    try:
+                        data = json.loads(message)
+                    except Exception as e:
+                        logging.exception("Error parsing OpenAI message: %s", e)
+                        await websocket.send_text(message)
+                        continue
+
                     print(f"OpenAI → Client: {data.get('type', 'unknown')}")
+                    
+                    # Auto-create a response when audio buffer is committed if client didn't request yet
+                    if data.get("type") == "input_audio_buffer.committed" and not awaiting_response:
+                        try:
+                            await openai_ws.send(json.dumps({
+                                "type": "response.create",
+                                "response": {"modalities": ["text", "audio"]}
+                            }))
+                            awaiting_response = True
+                            print("Server → OpenAI: response.create (auto after commit)")
+                        except Exception as e:
+                            print(f"Failed to send response.create: {e}")
+                    
+                    # Clear awaiting flag when response completes/finishes
+                    if data.get("type") in (
+                        "response.completed",
+                        "response.audio.done",
+                        "response.output_audio.done",
+                        "response.text.done",
+                        "response.output_text.done"
+                    ):
+                        awaiting_response = False
                     
                     # Save transcripts for later
                     if data.get("type") == "conversation.item.input_audio_transcription.completed":
@@ -682,6 +718,13 @@ async def voice_websocket(websocket: WebSocket):
                         # Text messages from client - relay to OpenAI
                         text_data = message["text"]
                         print(f"Client → OpenAI: {text_data}")
+                        # Track when client asks to create a response
+                        try:
+                            payload = json.loads(text_data)
+                            if isinstance(payload, dict) and payload.get("type") == "response.create":
+                                awaiting_response = True
+                        except Exception:
+                            pass
                         await openai_ws.send(text_data)
                         
         except WebSocketDisconnect:

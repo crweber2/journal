@@ -10,6 +10,15 @@ class VoiceJournal {
         this.currentSessionType = null;
         this.conversationTranscript = [];
         
+        // Buffer for incremental text events
+        this.pendingText = '';
+        // Track whether we've already requested a model response for the current buffer
+        this.awaitingResponse = false;
+        this.responseRetryTimer = null;
+        this.responseRetrySent = false;
+        this.responseTextCommitted = false;
+        this.commitRetryTimer = null;
+        
         // Silence detection
         this.silenceThreshold = 0.02; // Increased from 0.01 to reduce false positives
         this.silenceTimeout = null;
@@ -18,7 +27,7 @@ class VoiceJournal {
         
         // Audio buffer management
         this.accumulatedBytes = 0;
-        this.MIN_BUFFER_BYTES = 4800; // 100ms at 24kHz (minimum for OpenAI)
+        this.MIN_BUFFER_BYTES = 2400; // ~50ms at 24kHz (2 bytes/sample). Lower to avoid clipping tail
         this.isCommitting = false; // Prevent duplicate commits
         this.hasAudioInBuffer = false; // Track if we have any audio to commit
         
@@ -99,6 +108,14 @@ class VoiceJournal {
     checkBrowserSupport() {
         const unsupportedFeatures = [];
         
+        // Require secure context for microphone except localhost
+        const hostname = window.location.hostname;
+        const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+        if (!window.isSecureContext && !isLocalhost) {
+            this.showError('Microphone requires a secure context. Open this app via HTTPS (e.g. your deployed URL or an HTTPS tunnel like ngrok/Cloudflare Tunnel) or use http://localhost.');
+            return false;
+        }
+        
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             unsupportedFeatures.push('Microphone access');
         }
@@ -162,6 +179,11 @@ class VoiceJournal {
             this.audioContext = new (window.AudioContext || window.webkitAudioContext)({
                 sampleRate: 24000
             });
+
+            // Ensure audio context is running (required by autoplay policies)
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
 
             // Load the audio worklet processor
             await this.audioContext.audioWorklet.addModule('/static/processor.js');
@@ -270,6 +292,13 @@ class VoiceJournal {
                 clearTimeout(this.silenceTimeout);
                 this.silenceTimeout = null;
             }
+
+            // Cancel any pending commit retry since speech resumed
+            if (this.commitRetryTimer) {
+                clearTimeout(this.commitRetryTimer);
+                this.commitRetryTimer = null;
+                console.log('Canceled pending commit retry due to resumed speech');
+            }
             
             this.lastAudioTime = currentTime;
             console.log(`Processing speech: ${float32Data.length} samples, amplitude: ${maxAmplitude.toFixed(4)}`);
@@ -320,7 +349,18 @@ class VoiceJournal {
         // Check if we have sufficient audio to commit
         if (!this.hasAudioInBuffer || this.accumulatedBytes < this.MIN_BUFFER_BYTES) {
             console.log(`Skipping commit: insufficient audio (${this.accumulatedBytes} bytes, need ${this.MIN_BUFFER_BYTES})`);
-            this.resetAudioBuffer();
+            // Do NOT reset: keep the tail so we don't clip the last word.
+            // Instead, schedule a short retry to allow remaining frames to arrive.
+            if (this.commitRetryTimer) {
+                clearTimeout(this.commitRetryTimer);
+            }
+            console.log(`Scheduling commit retry in 250ms (bytes=${this.accumulatedBytes})`);
+            this.commitRetryTimer = setTimeout(() => {
+                if (this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
+                    console.log('Commit retry firing');
+                    this.commitAudioBuffer();
+                }
+            }, 250);
             return;
         }
         
@@ -332,16 +372,41 @@ class VoiceJournal {
             type: "input_audio_buffer.commit"
         }));
         
-        // Trigger response generation
-        this.openaiWebSocket.send(JSON.stringify({
-            type: "response.create"
-        }));
+        // Trigger response generation (guard against double requests)
+        if (!this.awaitingResponse) {
+            this.awaitingResponse = true;
+            console.log('Client → OpenAI: response.create (after commit)');
+            this.openaiWebSocket.send(JSON.stringify({
+                type: "response.create",
+                response: {
+                    modalities: ["text", "audio"]
+                }
+            }));
+            if (this.responseRetryTimer) { clearTimeout(this.responseRetryTimer); }
+            this.responseRetrySent = false;
+            this.responseRetryTimer = setTimeout(() => {
+                if (this.awaitingResponse && !this.responseRetrySent && this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
+                    console.log('Client → OpenAI: response.create (retry)');
+                    this.openaiWebSocket.send(JSON.stringify({
+                        type: "response.create",
+                        response: { modalities: ["text", "audio"] }
+                    }));
+                    this.responseRetrySent = true;
+                }
+            }, 2000);
+        }
         
         // Reset audio buffer tracking
         this.resetAudioBuffer();
     }
 
     resetAudioBuffer() {
+        // Cancel any pending commit retry
+        if (this.commitRetryTimer) {
+            clearTimeout(this.commitRetryTimer);
+            this.commitRetryTimer = null;
+        }
+
         // Reset audio buffer tracking
         this.accumulatedBytes = 0;
         this.hasAudioInBuffer = false;
@@ -376,6 +441,69 @@ class VoiceJournal {
                 // Don't process here - we're using client-side silence detection instead
                 break;
 
+            case 'input_audio_buffer.committed':
+                console.log('OpenAI buffer committed');
+                if (!this.awaitingResponse && this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
+                    this.awaitingResponse = true;
+                    console.log('Client → OpenAI: response.create (after committed event)');
+                    this.openaiWebSocket.send(JSON.stringify({
+                        type: 'response.create',
+                        response: {
+                            modalities: ['text', 'audio']
+                        }
+                    }));
+                    if (this.responseRetryTimer) { clearTimeout(this.responseRetryTimer); }
+                    this.responseRetrySent = false;
+                    this.responseRetryTimer = setTimeout(() => {
+                        if (this.awaitingResponse && !this.responseRetrySent && this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
+                            console.log('Client → OpenAI: response.create (retry after committed)');
+                            this.openaiWebSocket.send(JSON.stringify({
+                                type: 'response.create',
+                                response: { modalities: ['text', 'audio'] }
+                            }));
+                            this.responseRetrySent = true;
+                        }
+                    }, 2000);
+                }
+                break;
+
+            case 'conversation.item.created':
+                console.log('OpenAI conversation item created');
+                break;
+
+            case 'response.created':
+                console.log('OpenAI response created', data);
+                this.pendingText = '';
+                this.responseTextCommitted = false;
+                break;
+
+            case 'response.completed':
+                console.log('OpenAI response completed');
+                this.updateStatusMessage('Listening...');
+                this.resetAudioPlayback();
+                this.awaitingResponse = false;
+                this.clearResponseRetry();
+                break;
+
+            case 'response.done':
+                console.log('OpenAI response done', data);
+                // Commit any accumulated text first; otherwise, extract from the final response payload
+                if (!this.responseTextCommitted) {
+                    const finalText = (this.pendingText && this.pendingText.trim())
+                        ? this.pendingText
+                        : this.extractTextFromResponse(data);
+                    if (finalText && finalText.trim()) {
+                        this.commitAssistantText(finalText.trim());
+                        this.responseTextCommitted = true;
+                    }
+                }
+                this.pendingText = '';
+                this.updateStatusMessage('Listening...');
+                this.resetAudioPlayback();
+                this.awaitingResponse = false;
+                this.clearResponseRetry();
+                break;
+
             case 'conversation.item.input_audio_transcription.completed':
                 const userTranscript = data.transcript;
                 this.addTranscript('user', userTranscript);
@@ -387,35 +515,159 @@ class VoiceJournal {
                 break;
 
             case 'response.audio.delta':
+            case 'response.output_audio.delta':
+                this.clearResponseRetry();
                 if (data.delta && !this.isMuted) {
                     this.playAudioChunk(data.delta);
                 }
                 break;
 
             case 'response.audio.done':
+            case 'response.output_audio.done':
                 this.updateStatusMessage('Listening...');
                 this.resetAudioPlayback(); // Reset for next response
+                this.awaitingResponse = false;
+                this.clearResponseRetry();
+                break;
+
+            case 'response.text.delta':
+                this.clearResponseRetry();
+                if (typeof data.delta === 'string') {
+                    this.pendingText += data.delta;
+                }
+                break;
+
+            case 'response.output_text.delta':
+                this.clearResponseRetry();
+                if (typeof data.delta === 'string') {
+                    this.pendingText += data.delta;
+                }
+                break;
+
+            // Some responses only provide an audio transcript stream without output_text deltas
+            case 'response.audio_transcript.delta':
+                this.clearResponseRetry();
+                if (typeof data.transcript === 'string') {
+                    this.pendingText += data.transcript;
+                } else if (typeof data.delta === 'string') {
+                    this.pendingText += data.delta;
+                }
+                break;
+
+            case 'response.audio_transcript.done':
+                this.clearResponseRetry();
+                if (!this.pendingText) {
+                    const t = (typeof data.transcript === 'string' && data.transcript) ||
+                              (typeof data.text === 'string' && data.text) || '';
+                    if (t) this.pendingText += t;
+                }
+                // Commit transcript to UI if not yet committed
+                if (!this.responseTextCommitted) {
+                    const text = (this.pendingText || '').trim();
+                    if (text) {
+                        this.commitAssistantText(text);
+                        this.responseTextCommitted = true;
+                    }
+                }
+                break;
+
+            // Content parts API: capture text parts if present
+            case 'response.content_part.added':
+                this.clearResponseRetry();
+                try {
+                    const part = data.part || (data.item && Array.isArray(data.item.content) ? data.item.content[0] : null);
+                    if (part) {
+                        const isTextPart = part.type === 'output_text' || part.type === 'text' || part.type === 'audio_transcript';
+                        const text = (typeof part.text === 'string' && part.text) ||
+                                     (typeof part.transcript === 'string' && part.transcript) ||
+                                     (typeof part.content === 'string' && part.content) || '';
+                        if (isTextPart && text) {
+                            this.pendingText += text;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to process content_part.added', e);
+                }
+                break;
+
+            case 'response.content_part.done':
+                this.clearResponseRetry();
+                try {
+                    const part = data.part || (data.item && Array.isArray(data.item.content) ? data.item.content[0] : null);
+                    if (part) {
+                        const isTextPart = part.type === 'output_text' || part.type === 'text' || part.type === 'audio_transcript';
+                        const text = (typeof part.text === 'string' && part.text) ||
+                                     (typeof part.transcript === 'string' && part.transcript) ||
+                                     (typeof part.content === 'string' && part.content) || '';
+                        if (isTextPart && text) {
+                            this.pendingText += text;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to process content_part.done', e);
+                }
+                break;
+
+            // Output item API: whole assistant message objects
+            case 'response.output_item.added':
+                this.clearResponseRetry();
+                try {
+                    const item = data.item || data.output_item;
+                    if (item) {
+                        const text = this.extractTextFromItem(item);
+                        if (text) this.pendingText += (this.pendingText ? ' ' : '') + text;
+                    }
+                } catch (e) {
+                    console.warn('Failed to process output_item.added', e);
+                }
+                break;
+
+            case 'response.output_item.done':
+                this.clearResponseRetry();
+                try {
+                    const item = data.item || data.output_item;
+                    if (item) {
+                        const text = this.extractTextFromItem(item);
+                        if (text) this.pendingText += (this.pendingText ? ' ' : '') + text;
+                    }
+                } catch (e) {
+                    console.warn('Failed to process output_item.done', e);
+                }
+                if (!this.responseTextCommitted) {
+                    const text = (this.pendingText || '').trim();
+                    if (text) {
+                        this.commitAssistantText(text);
+                        this.responseTextCommitted = true;
+                    }
+                }
                 break;
 
             case 'response.text.done':
-                const aiResponse = data.text;
-                this.addTranscript('assistant', aiResponse);
-                this.conversationTranscript.push({
-                    role: 'assistant',
-                    content: aiResponse,
-                    timestamp: new Date().toISOString()
-                });
+            case 'response.output_text.done':
+                const aiText = (typeof data.text === 'string' && data.text) || this.pendingText || (typeof data.output_text === 'string' ? data.output_text : '');
+                if (aiText) {
+                    this.commitAssistantText(aiText);
+                    this.responseTextCommitted = true;
+                }
+                this.pendingText = '';
+                this.awaitingResponse = false;
+                this.clearResponseRetry();
                 break;
 
             case 'error':
                 console.error('OpenAI error:', data);
                 this.showError('OpenAI error: ' + (data.error?.message || 'Unknown error'));
+                this.awaitingResponse = false;
                 break;
         }
     }
 
     async playAudioChunk(base64Audio) {
         try {
+            // Ensure audio context is running
+            if (this.audioContext && this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
             // Decode base64 to binary
             const binaryString = atob(base64Audio);
             const bytes = new Uint8Array(binaryString.length);
@@ -462,6 +714,83 @@ class VoiceJournal {
         this.nextPlayTime = 0;
         this.audioQueue = [];
         console.log('Audio playback reset');
+    }
+
+    clearResponseRetry() {
+        if (this.responseRetryTimer) {
+            clearTimeout(this.responseRetryTimer);
+            this.responseRetryTimer = null;
+        }
+        this.responseRetrySent = false;
+    }
+
+    commitAssistantText(text) {
+        const clean = (text || '').trim();
+        console.log('Committing assistant text length:', clean.length, 'preview:', clean.slice(0, 80));
+        if (!clean) return;
+        this.addTranscript('assistant', clean);
+        this.conversationTranscript.push({
+            role: 'assistant',
+            content: clean,
+            timestamp: new Date().toISOString()
+        });
+    }
+
+    // Extract text from a single realtime.item (assistant message with content parts)
+    extractTextFromItem(item) {
+        try {
+            const texts = [];
+            if (!item) return '';
+            const parts = Array.isArray(item.content) ? item.content : [];
+            for (const part of parts) {
+                if (!part) continue;
+                const isTextPart = part.type === 'output_text' || part.type === 'text' || part.type === 'audio_transcript';
+                const text = (typeof part.text === 'string' && part.text)
+                    || (typeof part.transcript === 'string' && part.transcript)
+                    || (typeof part.content === 'string' && part.content)
+                    || '';
+                if (isTextPart && text && text.trim()) {
+                    texts.push(text.trim());
+                }
+            }
+            return texts.join(' ').trim();
+        } catch (e) {
+            console.warn('extractTextFromItem failed', e);
+            return '';
+        }
+    }
+    
+    // Fallback extractor for 'response.done' payloads that contain the whole response
+    extractTextFromResponse(respEvent) {
+        try {
+            const resp = respEvent && respEvent.response ? respEvent.response : respEvent;
+            const output = (resp && Array.isArray(resp.output)) ? resp.output : [];
+            const texts = [];
+
+            for (const item of output) {
+                // Expect items like: { type: 'message', role: 'assistant', content: [ { type:'output_text', text:'...' }, ... ] }
+                if (!item || item.type !== 'message' || item.role !== 'assistant') continue;
+                const parts = Array.isArray(item.content) ? item.content : [];
+                for (const part of parts) {
+                    if (!part) continue;
+                    const isTextPart = part.type === 'output_text' || part.type === 'text' || part.type === 'audio_transcript';
+                    const text = (typeof part.text === 'string' && part.text)
+                        || (typeof part.transcript === 'string' && part.transcript)
+                        || (typeof part.content === 'string' && part.content)
+                        || '';
+                    if (isTextPart && text && text.trim()) {
+                        texts.push(text.trim());
+                    }
+                }
+            }
+
+            const joined = texts.join(' ').trim();
+            console.log('extractTextFromResponse collected chars:', joined.length, 'preview:', joined.slice(0, 80));
+            return joined;
+        } catch (e) {
+            console.warn('Failed to extract text from response:', e);
+            return '';
+        }
     }
 
     startRecording() {

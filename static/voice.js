@@ -14,22 +14,29 @@ class VoiceJournal {
         this.pendingText = '';
         // Track whether we've already requested a model response for the current buffer
         this.awaitingResponse = false;
+        this.activeResponseId = null;
         this.responseRetryTimer = null;
         this.responseRetrySent = false;
         this.responseTextCommitted = false;
         this.commitRetryTimer = null;
         
         // Silence detection
-        this.silenceThreshold = 0.02; // Increased from 0.01 to reduce false positives
+        this.silenceThreshold = 0.02; // Slightly increased to reduce false positives from background noise
         this.silenceTimeout = null;
-        this.silenceDuration = 1500; // 1.5 seconds of silence before commit
+        this.silenceDuration = 2500; // 2.5 seconds of silence before commit (increased to prevent cutting off last words)
         this.lastAudioTime = 0;
+        this.speechStartTime = 0; // Track when actual speech started
+        this.ambientNoiseLevel = 0; // Track background noise level
+        this.noiseCalibrationSamples = 0; // Count samples for noise calibration
+        this.MAX_NOISE_SAMPLES = 100; // Calibrate noise level over first 100 samples
         
         // Audio buffer management
         this.accumulatedBytes = 0;
-        this.MIN_BUFFER_BYTES = 2400; // ~50ms at 24kHz (2 bytes/sample). Lower to avoid clipping tail
+        this.MIN_BUFFER_BYTES = 5000; // ~104ms at 24kHz (2 bytes/sample) - OpenAI minimum with safety margin
         this.isCommitting = false; // Prevent duplicate commits
         this.hasAudioInBuffer = false; // Track if we have any audio to commit
+        this.speechStartTime = 0; // Track when speech actually started
+        this.MIN_SPEECH_DURATION = 500; // Minimum 500ms of speech before committing
         
         // Audio playback queue
         this.nextPlayTime = 0;
@@ -301,10 +308,29 @@ class VoiceJournal {
         const maxAmplitude = Math.max(...float32Data.map(Math.abs));
         const currentTime = Date.now();
         
-        // Check if we have speech (above silence threshold)
+        // Calibrate ambient noise level during the first few samples
+        if (this.noiseCalibrationSamples < this.MAX_NOISE_SAMPLES) {
+            this.ambientNoiseLevel = (this.ambientNoiseLevel * this.noiseCalibrationSamples + maxAmplitude) / (this.noiseCalibrationSamples + 1);
+            this.noiseCalibrationSamples++;
+            
+            if (this.noiseCalibrationSamples === this.MAX_NOISE_SAMPLES) {
+                // Adjust threshold based on ambient noise
+                const adaptiveThreshold = Math.max(this.silenceThreshold, this.ambientNoiseLevel * 2.5);
+                console.log(`Noise calibration complete. Ambient: ${this.ambientNoiseLevel.toFixed(4)}, Adaptive threshold: ${adaptiveThreshold.toFixed(4)}`);
+                this.silenceThreshold = adaptiveThreshold;
+            }
+        }
+        
+        // Check if we have speech (above adaptive silence threshold)
         const hasSpeech = maxAmplitude > this.silenceThreshold;
         
         if (hasSpeech) {
+            // Track when speech actually started
+            if (this.speechStartTime === 0) {
+                this.speechStartTime = currentTime;
+                console.log('Speech started');
+            }
+            
             // Clear any pending silence timeout
             if (this.silenceTimeout) {
                 clearTimeout(this.silenceTimeout);
@@ -319,7 +345,7 @@ class VoiceJournal {
             }
             
             this.lastAudioTime = currentTime;
-            console.log(`Processing speech: ${float32Data.length} samples, amplitude: ${maxAmplitude.toFixed(4)}`);
+            console.log(`Processing speech: ${float32Data.length} samples, amplitude: ${maxAmplitude.toFixed(4)}, threshold: ${this.silenceThreshold.toFixed(4)}`);
             
             // Convert Float32 to PCM16
             const pcm16 = new Int16Array(float32Data.length);
@@ -364,55 +390,69 @@ class VoiceJournal {
             return;
         }
         
-        // Check if we have sufficient audio to commit
-        if (!this.hasAudioInBuffer || this.accumulatedBytes < this.MIN_BUFFER_BYTES) {
-            console.log(`Skipping commit: insufficient audio (${this.accumulatedBytes} bytes, need ${this.MIN_BUFFER_BYTES})`);
-            // Do NOT reset: keep the tail so we don't clip the last word.
-            // Instead, schedule a short retry to allow remaining frames to arrive.
-            if (this.commitRetryTimer) {
-                clearTimeout(this.commitRetryTimer);
-            }
-            console.log(`Scheduling commit retry in 250ms (bytes=${this.accumulatedBytes})`);
-            this.commitRetryTimer = setTimeout(() => {
-                if (this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
-                    console.log('Commit retry firing');
-                    this.commitAudioBuffer();
-                }
-            }, 250);
+        // Don't commit if we're already waiting for a response
+        if (this.awaitingResponse) {
+            console.log('Skipping commit: already awaiting response');
             return;
         }
         
-        console.log(`Committing audio buffer: ${this.accumulatedBytes} bytes`);
+        // Check if we have sufficient audio to commit
+        if (!this.hasAudioInBuffer || this.accumulatedBytes < this.MIN_BUFFER_BYTES) {
+            console.log(`Skipping commit: insufficient audio (${this.accumulatedBytes} bytes, need ${this.MIN_BUFFER_BYTES})`);
+            // Schedule a retry but don't reset awaitingResponse flag
+            if (this.commitRetryTimer) {
+                clearTimeout(this.commitRetryTimer);
+            }
+            console.log(`Scheduling commit retry in 500ms (bytes=${this.accumulatedBytes})`);
+            this.commitRetryTimer = setTimeout(() => {
+                if (this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN && !this.awaitingResponse) {
+                    console.log('Commit retry firing');
+                    this.commitAudioBuffer();
+                }
+            }, 500);
+            return;
+        }
+        
+        // Check if we have sufficient speech duration to prevent false positives
+        const currentTime = Date.now();
+        const speechDuration = this.speechStartTime > 0 ? currentTime - this.speechStartTime : 0;
+        
+        if (speechDuration < this.MIN_SPEECH_DURATION) {
+            console.log(`Skipping commit: insufficient speech duration (${speechDuration}ms, need ${this.MIN_SPEECH_DURATION}ms)`);
+            // Reset speech tracking and don't commit
+            this.speechStartTime = 0;
+            this.resetAudioBuffer();
+            return;
+        }
+        
+        console.log(`Committing audio buffer: ${this.accumulatedBytes} bytes, speech duration: ${speechDuration}ms`);
         this.updateStatusMessage('Processing your message...');
         
-        // Commit the audio buffer
+        // Set awaiting response flag BEFORE sending ANY requests
+        this.awaitingResponse = true;
+        console.log('Set awaitingResponse = true, preventing any further commits');
+        
+        // First commit the audio buffer
         this.openaiWebSocket.send(JSON.stringify({
             type: "input_audio_buffer.commit"
         }));
         
-        // Trigger response generation (guard against double requests)
-        if (!this.awaitingResponse) {
-            this.awaitingResponse = true;
-            console.log('Client → OpenAI: response.create (after commit)');
-            this.openaiWebSocket.send(JSON.stringify({
-                type: "response.create",
-                response: {
-                    modalities: ["text", "audio"]
-                }
-            }));
-            if (this.responseRetryTimer) { clearTimeout(this.responseRetryTimer); }
-            this.responseRetrySent = false;
-            this.responseRetryTimer = setTimeout(() => {
-                if (this.awaitingResponse && !this.responseRetrySent && this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
-                    console.log('Client → OpenAI: response.create (retry)');
-                    this.openaiWebSocket.send(JSON.stringify({
-                        type: "response.create",
-                        response: { modalities: ["text", "audio"] }
-                    }));
-                    this.responseRetrySent = true;
-                }
-            }, 2000);
+        // Then immediately request a response - this ensures proper sequencing
+        this.openaiWebSocket.send(JSON.stringify({
+            type: "response.create",
+            response: {
+                modalities: ["text", "audio"]
+            }
+        }));
+        
+        console.log('Sent commit + response.create');
+        
+        // Clear any existing retry timers
+        if (this.responseRetryTimer) { 
+            clearTimeout(this.responseRetryTimer); 
+            this.responseRetryTimer = null;
         }
+        this.responseRetrySent = false;
         
         // Reset audio buffer tracking
         this.resetAudioBuffer();
@@ -430,6 +470,7 @@ class VoiceJournal {
         this.hasAudioInBuffer = false;
         this.silenceTimeout = null;
         this.lastAudioTime = 0;
+        this.speechStartTime = 0; // Reset speech start time for next detection cycle
         console.log('Audio buffer tracking reset');
     }
 
@@ -461,28 +502,9 @@ class VoiceJournal {
 
             case 'input_audio_buffer.committed':
                 console.log('OpenAI buffer committed');
-                if (!this.awaitingResponse && this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
-                    this.awaitingResponse = true;
-                    console.log('Client → OpenAI: response.create (after committed event)');
-                    this.openaiWebSocket.send(JSON.stringify({
-                        type: 'response.create',
-                        response: {
-                            modalities: ['text', 'audio']
-                        }
-                    }));
-                    if (this.responseRetryTimer) { clearTimeout(this.responseRetryTimer); }
-                    this.responseRetrySent = false;
-                    this.responseRetryTimer = setTimeout(() => {
-                        if (this.awaitingResponse && !this.responseRetrySent && this.openaiWebSocket && this.openaiWebSocket.readyState === WebSocket.OPEN) {
-                            console.log('Client → OpenAI: response.create (retry after committed)');
-                            this.openaiWebSocket.send(JSON.stringify({
-                                type: 'response.create',
-                                response: { modalities: ['text', 'audio'] }
-                            }));
-                            this.responseRetrySent = true;
-                        }
-                    }, 2000);
-                }
+                // Don't send response.create here - it should only be sent once from commitAudioBuffer
+                // The awaitingResponse flag is already set before the commit was sent
+                console.log('Buffer committed, awaitingResponse:', this.awaitingResponse);
                 break;
 
             case 'conversation.item.created':
@@ -672,10 +694,29 @@ class VoiceJournal {
                 this.clearResponseRetry();
                 break;
 
+            case 'response.cancelled':
+                console.log('OpenAI response cancelled');
+                this.updateStatusMessage('Listening...');
+                this.awaitingResponse = false;
+                this.activeResponseId = null;
+                this.clearResponseRetry();
+                break;
+
             case 'error':
                 console.error('OpenAI error:', data);
-                this.showError('OpenAI error: ' + (data.error?.message || 'Unknown error'));
-                this.awaitingResponse = false;
+                
+                // Handle specific race condition error
+                if (data.error?.code === 'conversation_already_has_active_response') {
+                    console.log('Race condition detected - resetting state and retrying');
+                    this.awaitingResponse = false;
+                    this.activeResponseId = null;
+                    this.updateStatusMessage('Listening...');
+                    // Don't show error to user for this specific case, just reset state
+                } else {
+                    this.showError('OpenAI error: ' + (data.error?.message || 'Unknown error'));
+                    this.awaitingResponse = false;
+                    this.activeResponseId = null;
+                }
                 break;
         }
     }

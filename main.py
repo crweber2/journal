@@ -47,7 +47,7 @@ class JournalPrompts:
         and set new objectives. Be encouraging but realistic about what can be accomplished."""
     }
     
-    VOICE_PROMPTS = {
+    VOICE_PROMPTS_OLD = {
         "reflection": """You are a thoughtful journaling assistant helping someone reflect on their day while they're driving. 
         Keep responses conversational and concise. Ask one question at a time. Be empathetic and encouraging. 
         Help them process their thoughts safely while driving.""",
@@ -64,6 +64,8 @@ class JournalPrompts:
         Be encouraging and realistic. Keep responses brief and ask one question at a time. 
         Help them think through their objectives safely."""
     }
+
+    VOICE_PROMPTS = BASE_PROMPTS
     
     INITIAL_MESSAGES = {
         "reflection": "Hi! I'm here to help you reflect on your day. What's been on your mind today?",
@@ -649,17 +651,8 @@ async def voice_websocket(websocket: WebSocket):
 
                     print(f"OpenAI → Client: {data.get('type', 'unknown')}")
                     
-                    # Auto-create a response when audio buffer is committed if client didn't request yet
-                    if data.get("type") == "input_audio_buffer.committed" and not awaiting_response:
-                        try:
-                            await openai_ws.send(json.dumps({
-                                "type": "response.create",
-                                "response": {"modalities": ["text", "audio"]}
-                            }))
-                            awaiting_response = True
-                            print("Server → OpenAI: response.create (auto after commit)")
-                        except Exception as e:
-                            print(f"Failed to send response.create: {e}")
+                    # Don't auto-create responses - let the client control this to avoid race conditions
+                    # The client will send response.create when appropriate
                     
                     # Clear awaiting flag when response completes/finishes
                     if data.get("type") in (
